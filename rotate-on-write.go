@@ -305,7 +305,7 @@ func (row *RotateOnWrite) oldFiles() (fnwts []fNameWithT, err error) {
 		}
 		fName = f.Name()
 		if strings.HasPrefix(fName, prefix) && strings.HasSuffix(fName, ext) {
-			ts = filename[len(prefix) : len(fName)-len(ext)]
+			ts = fName[len(prefix) : len(fName)-len(ext)]
 			if t, parseE = time.Parse(_backupTimeFormat, ts); parseE == nil {
 				fnwts = append(fnwts, fNameWithT{fName: fName, t: t})
 			}
