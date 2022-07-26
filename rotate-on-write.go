@@ -255,7 +255,7 @@ func (row *RotateOnWrite) millRunOnce() (err error) {
 	if lenFnwts == 0 {
 		return
 	}
-	var rmIdx int
+	var rmIdx = lenFnwts
 	var fnwtsForRm = fnwts
 	if row.MaxBackups > 0 && row.MaxBackups < lenFnwts {
 		rmIdx = row.MaxBackups
