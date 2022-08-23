@@ -43,3 +43,69 @@ func Test_byFormatTime_Less(t *testing.T) {
 		})
 	}
 }
+
+func TestRotateOnWrite_Write(t *testing.T) {
+
+	var testP = []byte(`{"test": "testP"}`)
+	type fields struct {
+		Filename   string
+		BackupDir  string
+		MaxSize    int
+		MaxAge     time.Duration
+		MaxBackups int
+		LocalTime  bool
+		// maxSize              int
+		// filenameBase         string
+		// filenameExt          string
+		// filenameDir          string
+		// backupDir            string
+		// isBackupNotInSameDir bool
+		// millCh               chan struct{}
+		// startMill            sync.Once
+	}
+	type args struct {
+		p []byte
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		wantN   int
+		wantErr bool
+	}{
+		{
+			name: "test",
+			fields: fields{
+				Filename:   "./test-dir/test/test-p.json",
+				BackupDir:  "./test-dir/backup",
+				MaxSize:    10,
+				MaxBackups: 100,
+			},
+			args: args{
+				p: testP,
+			},
+			wantN:   len(testP),
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			row := &RotateOnWrite{
+				Filename:   tt.fields.Filename,
+				BackupDir:  tt.fields.BackupDir,
+				MaxSize:    tt.fields.MaxSize,
+				MaxAge:     tt.fields.MaxAge,
+				MaxBackups: tt.fields.MaxBackups,
+				LocalTime:  tt.fields.LocalTime,
+			}
+			gotN, err := row.Write(tt.args.p)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("RotateOnWrite.Write() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if gotN != tt.wantN {
+				t.Errorf("RotateOnWrite.Write() = %v, want %v", gotN, tt.wantN)
+			}
+		})
+	}
+}

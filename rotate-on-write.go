@@ -52,7 +52,7 @@ var (
 // `/var/log/foo/server.log`, a backup created at 6:30pm on Nov 11 2016 would
 // use the filename `/var/log/foo/server-2016-11-04T18-30-00.000.log`
 //
-// Cleaning Up Old Files
+// # Cleaning Up Old Files
 //
 // Whenever a new file gets created, old files may be deleted.  The most
 // recent files according to the encoded timestamp will be retained, up to a
@@ -64,27 +64,33 @@ var (
 // If MaxBackups and MaxAge are both 0, no old files will be deleted.
 type RotateOnWrite struct {
 	// Filename is the file to write bytes to.  Backup files will be retained
-	// in the same directory.  It uses <processname>-rotate-on-write.log in
-	// os.TempDir() if empty.
-	Filename string
+	// in the same directory if BackupDir not set.  It uses
+	// <processname>-rotate-on-write.log in os.TempDir() if empty.
+	Filename string `json:"filename,omitempty" yaml:"filename,omitempty"`
+	// BackupDir is the backup file dir.  if not set, backup files will
+	// be retained in the same of Filename directory.
+	BackupDir string `json:"backup_dir,omitempty" yaml:"backup_dir,omitempty"`
 	// MaxSize is the maximum size in megabytes when writing every time. It defaults to 5 megabytes.
-	MaxSize int
+	MaxSize int `json:"max_size,omitempty" yaml:"max_size,omitempty"`
 	// MaxAge is the maximum time to retain old files based on the
 	// timestamp encoded in their filename.  Note that it base on time.Nanosecond (the minimal unit of time). The default is not to remove old files based on age.
-	MaxAge time.Duration
+	MaxAge time.Duration `json:"max_age,omitempty" yaml:"max_age,omitempty"`
 	// MaxBackups is the maximum number of old files to retain.  The default
 	// is to retain all old files (though MaxAge may still cause them to get
 	// deleted.)
-	MaxBackups int
+	MaxBackups int `json:"max_backups,omitempty" yaml:"max_backups,omitempty"`
 	// LocalTime determines if the time used for formatting the timestamps in
 	// backup files is the computer's local time.  The default is to use UTC
 	// time.
-	LocalTime bool
+	LocalTime bool `json:"local_time,omitempty" yaml:"local_time,omitempty"`
 	// maxSize calculate when MaxSize setting, so we need not calc every time
 	maxSize      int
 	filenameBase string
 	filenameExt  string
 	filenameDir  string
+	backupDir    string
+	// isBackupNotInSameDir true if backupDir is not same as filenameDir.
+	isBackupNotInSameDir bool
 
 	millCh    chan struct{}
 	startMill sync.Once
@@ -115,10 +121,17 @@ func (row *RotateOnWrite) rotateOnWrite(p []byte) (n int, err error) {
 	// note: need to clear old file because row.MaxAge, row.MaxBackups
 
 	var filename = row.filename()
-	var dir = row.getFilenameDir(filename)
+	var dir = row.getFilenameDir()
 	if err = os.MkdirAll(dir, 0744); err != nil {
 		err = errors.Wrapf(err, "can't make directories: %s for new file: %s", dir, filename)
 		return
+	}
+	var backupDir = row.getBackupDir()
+	if row.isBackupNotInSameDir {
+		if err = os.MkdirAll(backupDir, 0744); err != nil {
+			err = errors.Wrapf(err, "can't make backup directories: %s for new file: %s", backupDir, filename)
+			return
+		}
 	}
 	var info os.FileInfo
 	var mode = os.FileMode(0644)
@@ -129,13 +142,13 @@ func (row *RotateOnWrite) rotateOnWrite(p []byte) (n int, err error) {
 		// Copy the mode off the old logfile.
 		mode = info.Mode()
 		// move the existing file
-		var base = row.getFilenameBase(filename)
-		var ext = row.getFilenameExt(base)
+		var base = row.getFilenameBase()
+		var ext = row.getFilenameExt()
 		var t = _currentTime()
 		if !row.LocalTime {
 			t = t.UTC()
 		}
-		var bkName = filepath.Join(dir, fmt.Sprintf("%s-%s%s", base[:len(base)-len(ext)], t.Format(_backupTimeFormat), ext))
+		var bkName = filepath.Join(backupDir, fmt.Sprintf("%s-%s%s", base[:len(base)-len(ext)], t.Format(_backupTimeFormat), ext))
 		if err = os.Rename(filename, bkName); err != nil {
 			err = errors.Wrapf(err, "can't rename file, oldName: %s, newName: %s", filename, bkName)
 			return
@@ -184,28 +197,28 @@ func (row *RotateOnWrite) max() (max int) {
 	return
 }
 
-func (row *RotateOnWrite) getFilenameBase(filename string) (base string) {
+func (row *RotateOnWrite) getFilenameBase() (base string) {
 
 	if row.filenameBase == "" {
-		row.filenameBase = filepath.Base(filename)
+		row.filenameBase = filepath.Base(row.filename())
 	}
 	base = row.filenameBase
 	return
 }
 
-func (row *RotateOnWrite) getFilenameExt(base string) (ext string) {
+func (row *RotateOnWrite) getFilenameExt() (ext string) {
 
 	if row.filenameExt == "" {
-		row.filenameExt = filepath.Ext(base)
+		row.filenameExt = filepath.Ext(row.getFilenameBase())
 	}
 	ext = row.filenameExt
 	return
 }
 
-func (row *RotateOnWrite) getFilenameDir(filename string) (dir string) {
+func (row *RotateOnWrite) getFilenameDir() (dir string) {
 
 	if row.filenameDir == "" {
-		row.filenameDir = filepath.Dir(filename)
+		row.filenameDir = filepath.Dir(row.filename())
 	}
 	dir = row.filenameDir
 	return
@@ -218,6 +231,22 @@ func (row *RotateOnWrite) filename() (filename string) {
 		row.Filename = filepath.Join(os.TempDir(), filepath.Base(os.Args[0])+"-rotate-on-write.log")
 	}
 	filename = row.Filename
+	return
+}
+
+// filename genFilename generates the name of the file from the current time.
+func (row *RotateOnWrite) getBackupDir() (dir string) {
+
+	if row.backupDir == "" {
+		var filenameDir = row.getFilenameDir()
+		if row.BackupDir == "" {
+			row.BackupDir, row.backupDir = filenameDir, filenameDir
+		} else {
+			row.backupDir = filepath.Clean(row.BackupDir) // if parse not correct, consider use filepath.Dir(filepath.Join(row.BackupDir, "x"))
+			row.isBackupNotInSameDir = row.backupDir != filenameDir
+		}
+	}
+	dir = row.backupDir
 	return
 }
 
@@ -273,7 +302,7 @@ func (row *RotateOnWrite) millRunOnce() (err error) {
 	var errRm error
 	for _, f := range fnwtsForRm[rmIdx:] {
 		// todo should we record all errRm?
-		if errRm = os.Remove(filepath.Join(row.getFilenameDir(row.filename()), f.fName)); err == nil && errRm != nil {
+		if errRm = os.Remove(filepath.Join(row.getBackupDir(), f.fName)); err == nil && errRm != nil {
 			err = errors.Wrapf(errRm, "rm file: %s fail", f.fName)
 		}
 	}
@@ -285,16 +314,15 @@ func (row *RotateOnWrite) millRunOnce() (err error) {
 func (row *RotateOnWrite) oldFiles() (fnwts []fNameWithT, err error) {
 
 	var fileInfos []fs.FileInfo
-	var filename = row.filename()
-	var dir = row.getFilenameDir(filename)
+	var dir = row.getBackupDir()
 	if fileInfos, err = ioutil.ReadDir(dir); err != nil {
-		err = errors.Wrapf(err, "can't read file directory: %s", dir)
+		err = errors.Wrapf(err, "can't read backup file directory: %s", dir)
 		return
 	}
 
 	fnwts = make([]fNameWithT, 0, len(fileInfos))
-	var base = row.getFilenameBase(filename)
-	var ext = row.getFilenameExt(base)
+	var base = row.getFilenameBase()
+	var ext = row.getFilenameExt()
 	var prefix = base[:len(base)-len(ext)] + "-"
 	var fName, ts string
 	var parseE error
@@ -309,9 +337,9 @@ func (row *RotateOnWrite) oldFiles() (fnwts []fNameWithT, err error) {
 			if t, parseE = time.Parse(_backupTimeFormat, ts); parseE == nil {
 				fnwts = append(fnwts, fNameWithT{fName: fName, t: t})
 			}
+			// error parsing means that the suffix at the end was not generated
+			// by rotate-on-write, and therefore it's not a backup file.
 		}
-		// error parsing means that the suffix at the end was not generated
-		// by rotate-on-write, and therefore it's not a backup file.
 	}
 	sort.Sort(byFormatTime(fnwts))
 	return
