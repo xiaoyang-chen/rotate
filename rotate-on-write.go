@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -33,7 +32,7 @@ var (
 	_ io.Writer = (*RotateOnWrite)(nil)
 )
 
-// RotateOnWrite is an io.Writer that writes to the specified filename.
+// RotateOnWrite is an io.Writer that writes to the specified filename.Noted that this is designed for single thread because more efficient, if running in multi threads env, data race will happen.
 //
 // RotateOnWrite opens or creates the file on first Write.
 // If the file exists, the file is renamed by putting the current time in a timestamp in the name immediately
@@ -91,9 +90,6 @@ type RotateOnWrite struct {
 	backupDir    string
 	// isBackupNotInSameDir true if backupDir is not same as filenameDir.
 	isBackupNotInSameDir bool
-
-	millCh    chan struct{}
-	startMill sync.Once
 }
 
 // Write implements io.Writer.
@@ -179,7 +175,7 @@ func (row *RotateOnWrite) rotateOnWrite(p []byte) (n int, err error) {
 		err = errors.Wrapf(err, "write len: %d fail, %s: %s", len(p), filename, string(p))
 		return
 	}
-	row.mill()
+	go row.millRunOnce() // todo what am I going to do for err from row.millRunOnce(), log this?
 	return
 }
 
@@ -248,25 +244,6 @@ func (row *RotateOnWrite) getBackupDir() (dir string) {
 	}
 	dir = row.backupDir
 	return
-}
-
-// mill performs post-rotation compression and removal of stale files,
-// starting the mill goroutine if necessary.
-func (row *RotateOnWrite) mill() {
-
-	row.startMill.Do(func() {
-		row.millCh = make(chan struct{}, 1)
-		go func() {
-			for range row.millCh {
-				// todo what am I going to do, log this?
-				_ = row.millRunOnce()
-			}
-		}()
-	})
-	select {
-	case row.millCh <- struct{}{}:
-	default:
-	}
 }
 
 // millRunOnce performs removal of stale files. old files are removed, keeping at most row.MaxBackups files, as long as none of them are older than MaxAge.
