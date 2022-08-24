@@ -66,8 +66,10 @@ type RotateOnWrite struct {
 	// in the same directory if BackupDir not set.  It uses
 	// <processname>-rotate-on-write.log in os.TempDir() if empty.
 	Filename string `json:"filename,omitempty" yaml:"filename,omitempty"`
-	// BackupDir is the backup file dir.  if not set, backup files will
-	// be retained in the same of Filename directory.
+	// BackupDir is the backup file dir, if not set, backup files will
+	// be retained in the same of Filename directory, if set,
+	// must be ensure BackupDir and Filename directory in same volume,
+	// or it will happen err("invalid cross-device link") when os.Rename.
 	BackupDir string `json:"backup_dir,omitempty" yaml:"backup_dir,omitempty"`
 	// MaxSize is the maximum size in megabytes when writing every time. It defaults to 5 megabytes.
 	MaxSize int `json:"max_size,omitempty" yaml:"max_size,omitempty"`
