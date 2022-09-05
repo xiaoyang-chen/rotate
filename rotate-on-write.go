@@ -84,6 +84,9 @@ type RotateOnWrite struct {
 	// backup files is the computer's local time.  The default is to use UTC
 	// time.
 	LocalTime bool `json:"local_time,omitempty" yaml:"local_time,omitempty"`
+	// NotWriteIfEmpty determines if writing when
+	// len(p) == 0 in "Write(p []byte)", The default is writing when empty.
+	NotWriteIfEmpty bool `json:"not_write_if_empty,omitempty" yaml:"not_write_if_empty,omitempty"`
 	// maxSize calculate when MaxSize setting, so we need not calc every time
 	maxSize      int
 	filenameBase string
@@ -107,11 +110,11 @@ func (row *RotateOnWrite) Write(p []byte) (n int, err error) {
 		return
 	}
 
-	n, err = row.rotateOnWrite(p)
+	n, err = row.rotateOnWrite(p, lenP)
 	return
 }
 
-func (row *RotateOnWrite) rotateOnWrite(p []byte) (n int, err error) {
+func (row *RotateOnWrite) rotateOnWrite(p []byte, lenP int) (n int, err error) {
 
 	// if file is exist, rename and open a new file, then write
 	// if is not exist, open a new file and write
@@ -156,6 +159,11 @@ func (row *RotateOnWrite) rotateOnWrite(p []byte) (n int, err error) {
 		err = errors.Wrapf(err, "get file: %s info fail", filename)
 		return
 	}
+	// judge whether writing, if not write, just check backup file
+	if row.NotWriteIfEmpty && lenP == 0 {
+		go row.millRunOnce() // todo what am I going to do for err from row.millRunOnce(), log this?
+		return
+	}
 	// open a new file and write, finally close file
 	// we use truncate here because this should only get called when we've moved
 	// the file ourselves. if someone else creates the file in the meantime,
@@ -174,7 +182,7 @@ func (row *RotateOnWrite) rotateOnWrite(p []byte) (n int, err error) {
 	}
 	// write
 	if n, err = file.Write(p); err != nil {
-		err = errors.Wrapf(err, "write len: %d fail, %s: %s", len(p), filename, string(p))
+		err = errors.Wrapf(err, "write len: %d fail, %s: %s", lenP, filename, string(p))
 		return
 	}
 	go row.millRunOnce() // todo what am I going to do for err from row.millRunOnce(), log this?

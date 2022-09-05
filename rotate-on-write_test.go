@@ -47,13 +47,15 @@ func Test_byFormatTime_Less(t *testing.T) {
 func TestRotateOnWrite_Write(t *testing.T) {
 
 	var testP = []byte(`{"test": "testP"}`)
+	// testP = []byte{} // NotWriteIfEmpty test
 	type fields struct {
-		Filename   string
-		BackupDir  string
-		MaxSize    int
-		MaxAge     time.Duration
-		MaxBackups int
-		LocalTime  bool
+		Filename        string
+		BackupDir       string
+		MaxSize         int
+		MaxAge          time.Duration
+		MaxBackups      int
+		LocalTime       bool
+		NotWriteIfEmpty bool
 		// maxSize              int
 		// filenameBase         string
 		// filenameExt          string
@@ -80,6 +82,7 @@ func TestRotateOnWrite_Write(t *testing.T) {
 				BackupDir:  "./test-dir/backup",
 				MaxSize:    10,
 				MaxBackups: 100,
+				// NotWriteIfEmpty: true, // NotWriteIfEmpty test
 			},
 			args: args{
 				p: testP,
@@ -91,12 +94,13 @@ func TestRotateOnWrite_Write(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			row := &RotateOnWrite{
-				Filename:   tt.fields.Filename,
-				BackupDir:  tt.fields.BackupDir,
-				MaxSize:    tt.fields.MaxSize,
-				MaxAge:     tt.fields.MaxAge,
-				MaxBackups: tt.fields.MaxBackups,
-				LocalTime:  tt.fields.LocalTime,
+				Filename:        tt.fields.Filename,
+				BackupDir:       tt.fields.BackupDir,
+				MaxSize:         tt.fields.MaxSize,
+				MaxAge:          tt.fields.MaxAge,
+				MaxBackups:      tt.fields.MaxBackups,
+				LocalTime:       tt.fields.LocalTime,
+				NotWriteIfEmpty: tt.fields.NotWriteIfEmpty,
 			}
 			gotN, err := row.Write(tt.args.p)
 			if (err != nil) != tt.wantErr {
