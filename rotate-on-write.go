@@ -3,8 +3,6 @@ package rotate
 import (
 	"fmt"
 	"io"
-	"io/fs"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -139,6 +137,7 @@ func (row *RotateOnWrite) rotateOnWrite(p []byte, lenP int) (n int, err error) {
 	var isExist bool
 	switch info, err = _os_Stat(filename); {
 	case os.IsNotExist(err):
+		err = nil // we need to set err to nil here
 	case err == nil:
 		// Copy the mode off the old logfile.
 		mode = info.Mode()
@@ -300,9 +299,9 @@ func (row *RotateOnWrite) millRunOnce() (err error) {
 // directory as the current file, sorted by time(from big to small) in name of file
 func (row *RotateOnWrite) oldFiles() (fnwts []fNameWithT, err error) {
 
-	var fileInfos []fs.FileInfo
+	var fileInfos []os.DirEntry
 	var dir = row.getBackupDir()
-	if fileInfos, err = ioutil.ReadDir(dir); err != nil {
+	if fileInfos, err = os.ReadDir(dir); err != nil {
 		err = errors.Wrapf(err, "can't read backup file directory: %s", dir)
 		return
 	}
