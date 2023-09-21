@@ -13,8 +13,10 @@ import (
 )
 
 const (
-	_backupTimeFormat = "2006-01-02T15-04-05.000"
-	_defaultMaxSize   = 5
+	_backupTimeFormat             = "2006-01-02T15-04-05.000"
+	_defaultMaxSize               = 5
+	_dirMkdirAllMode  os.FileMode = 0755
+	_fileMode         os.FileMode = 0644
 )
 
 var (
@@ -121,19 +123,19 @@ func (row *RotateOnWrite) rotateOnWrite(p []byte, lenP int) (n int, err error) {
 
 	var filename = row.filename()
 	var dir = row.getFilenameDir()
-	if err = os.MkdirAll(dir, 0744); err != nil {
+	if err = os.MkdirAll(dir, _dirMkdirAllMode); err != nil {
 		err = errors.Wrapf(err, "can't make directories: %s for new file: %s", dir, filename)
 		return
 	}
 	var backupDir = row.getBackupDir()
 	if row.isBackupNotInSameDir {
-		if err = os.MkdirAll(backupDir, 0744); err != nil {
+		if err = os.MkdirAll(backupDir, _dirMkdirAllMode); err != nil {
 			err = errors.Wrapf(err, "can't make backup directories: %s for new file: %s", backupDir, filename)
 			return
 		}
 	}
 	var info os.FileInfo
-	var mode = os.FileMode(0644)
+	var mode = _fileMode
 	var isExist bool
 	switch info, err = _os_Stat(filename); {
 	case os.IsNotExist(err):

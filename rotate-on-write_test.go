@@ -199,3 +199,68 @@ func TestRotateOnWrite_oldFiles(t *testing.T) {
 		})
 	}
 }
+
+func TestRotateOnWrite_getFilenameDir(t *testing.T) {
+	type fields struct {
+		Filename             string
+		BackupDir            string
+		MaxSize              int
+		MaxAge               time.Duration
+		MaxBackups           int
+		LocalTime            bool
+		NotWriteIfEmpty      bool
+		maxSize              int
+		filenameBase         string
+		filenameExt          string
+		filenameDir          string
+		backupDir            string
+		isBackupNotInSameDir bool
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		wantDir string
+	}{
+		{
+			name: "test",
+			fields: fields{
+				Filename:             "/test/test-1/test-2.json",
+				BackupDir:            "",
+				MaxSize:              0,
+				MaxAge:               0,
+				MaxBackups:           0,
+				LocalTime:            false,
+				NotWriteIfEmpty:      false,
+				maxSize:              0,
+				filenameBase:         "",
+				filenameExt:          "",
+				filenameDir:          "",
+				backupDir:            "",
+				isBackupNotInSameDir: false,
+			},
+			wantDir: "/test/test-1",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			row := &RotateOnWrite{
+				Filename:             tt.fields.Filename,
+				BackupDir:            tt.fields.BackupDir,
+				MaxSize:              tt.fields.MaxSize,
+				MaxAge:               tt.fields.MaxAge,
+				MaxBackups:           tt.fields.MaxBackups,
+				LocalTime:            tt.fields.LocalTime,
+				NotWriteIfEmpty:      tt.fields.NotWriteIfEmpty,
+				maxSize:              tt.fields.maxSize,
+				filenameBase:         tt.fields.filenameBase,
+				filenameExt:          tt.fields.filenameExt,
+				filenameDir:          tt.fields.filenameDir,
+				backupDir:            tt.fields.backupDir,
+				isBackupNotInSameDir: tt.fields.isBackupNotInSameDir,
+			}
+			if gotDir := row.getFilenameDir(); gotDir != tt.wantDir {
+				t.Errorf("RotateOnWrite.getFilenameDir() = %v, want %v", gotDir, tt.wantDir)
+			}
+		})
+	}
+}
